@@ -3,7 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { ApiError, fetchBootstrap, getToken, setToken, type Bootstrap } from './api';
+import { LoginView } from './components/LoginView';
 import { AppProvider, useApp } from './context/AppContext';
 import { Header } from './components/Header';
 import { CourseCard } from './components/CourseCard';
@@ -42,7 +44,7 @@ import {
 type AppView = 'catalog' | 'my_courses' | 'dashboard' | 'admin' | 'course_detail' | 'lesson_player' | 'teacher_studio';
 
 function MainApp() {
-  const { currentUser, courses, notifications, getCertificate, appSettings, loginAsUser } = useApp();
+  const { currentUser, courses, notifications, getCertificate, appSettings } = useApp();
 
   // Navigation State
   const [currentView, setCurrentView] = useState<AppView>('catalog');
@@ -443,12 +445,6 @@ function MainApp() {
                 >
                   กลับสู่หน้าหลักคอร์สเรียน
                 </button>
-                <button
-                  onClick={() => loginAsUser('user-admin-1')}
-                  className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 transition"
-                >
-                  สลับเป็นแอดมิน (ดร. กิตติศักดิ์ พงษ์ศิริ)
-                </button>
               </div>
             </div>
           )
@@ -493,12 +489,6 @@ function MainApp() {
                   className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800 transition"
                 >
                   กลับไปสำรวจคอร์สเรียน
-                </button>
-                <button
-                  onClick={() => loginAsUser('user-teacher-1')}
-                  className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 transition"
-                >
-                  สลับเป็นอาจารย์ (อ. ดร. วิชัย เมธาวี)
                 </button>
               </div>
             </div>
@@ -587,8 +577,31 @@ function MainApp() {
 }
 
 export default function App() {
+  const [boot, setBoot] = useState<Bootstrap | null>(null);
+  const [loading, setLoading] = useState<boolean>(() => !!getToken());
+  const [notice, setNotice] = useState<string | undefined>();
+
+  const load = () => {
+    setLoading(true);
+    fetchBootstrap()
+      .then(setBoot)
+      .catch(err => {
+        if (err instanceof ApiError && err.status === 401) { setToken(null); setNotice('เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่'); }
+        else setNotice('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ กรุณาลองใหม่');
+      })
+      .finally(() => setLoading(false));
+  };
+  useEffect(() => { if (getToken()) load(); else setLoading(false); }, []);
+
+  if (loading) {
+    return (
+      <div className="min-h-dvh flex items-center justify-center text-sm text-slate-500">กำลังโหลดข้อมูล...</div>
+    );
+  }
+  if (!boot) return <LoginView notice={notice} onAuthed={load} />;
+
   return (
-    <AppProvider>
+    <AppProvider key={boot.currentUserId} initial={boot} onLogout={() => { setToken(null); setBoot(null); setNotice(undefined); }}>
       <MainApp />
     </AppProvider>
   );

@@ -27,7 +27,7 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onOpenNotifications, onOpenJoinClassroom }) => {
-  const { currentUser, users, loginAsUser, notifications, resetAllData, appSettings } = useApp();
+  const { currentUser, notifications, logout, appSettings } = useApp();
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
 
@@ -185,28 +185,9 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onOpenN
                       <span className="text-[10px] text-slate-500 block truncate">{currentUser.email}</span>
                     </div>
                   </div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
-                    สลับบัญชีทดสอบ (Demo Switcher):
+                  <span className="text-[10px] font-semibold text-slate-400 block">
+                    {currentUser.role === 'admin' ? 'ผู้ดูแลระบบ' : currentUser.role === 'teacher' ? 'อาจารย์ผู้สอน' : 'ผู้เรียน'}
                   </span>
-                  <div className="space-y-1 max-h-44 overflow-y-auto">
-                    {users.map(u => (
-                      <button
-                        key={u.id}
-                        onClick={() => loginAsUser(u.id)}
-                        className={`w-full flex items-center justify-between p-2 rounded-lg text-left transition-colors ${
-                          u.id === currentUser.id ? 'bg-indigo-50 text-indigo-900 font-semibold' : 'hover:bg-slate-50 text-slate-700'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2 truncate">
-                          <img src={u.avatar} alt={u.name} className="w-5 h-5 rounded-full object-cover" />
-                          <span className="truncate">{u.name}</span>
-                        </div>
-                        <span className="text-[10px] font-mono text-slate-400 shrink-0">
-                          {u.role === 'admin' ? 'Admin' : u.role === 'teacher' ? 'Teacher' : 'Student'}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
                 </div>
 
                 <div className="p-1 space-y-1">
@@ -249,11 +230,11 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onOpenN
                   )}
 
                   <button
-                    onClick={resetAllData}
+                    onClick={logout}
                     className="w-full text-left p-2 rounded-lg hover:bg-rose-50 text-rose-600 flex items-center gap-2 pt-2 border-t border-slate-100"
                   >
                     <RotateCcw className="w-3.5 h-3.5" />
-                    <span>รีเซ็ตข้อมูลตัวอย่าง</span>
+                    <span>ออกจากระบบ</span>
                   </button>
                 </div>
               </div>
@@ -373,13 +354,13 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onOpenN
             </div>
             <button
               onClick={() => {
-                resetAllData();
+                logout();
                 setShowMobileMenu(false);
               }}
               className="text-[11px] text-rose-600 hover:underline flex items-center gap-1 font-medium"
             >
               <RotateCcw className="w-3 h-3" />
-              <span>รีเซ็ตข้อมูล</span>
+              <span>ออกจากระบบ</span>
             </button>
           </div>
         </div>

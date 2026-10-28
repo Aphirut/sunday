@@ -25,7 +25,7 @@ export const JoinClassroomModal: React.FC<JoinClassroomModalProps> = ({
   onClose,
   onJoinSuccess
 }) => {
-  const { courses, currentUser, enrollInCourse } = useApp();
+  const { courses, currentUser, enrollInCourse, joinByCode } = useApp();
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
 
@@ -44,7 +44,7 @@ export const JoinClassroomModal: React.FC<JoinClassroomModalProps> = ({
 
   const isEnrolled = matchedCourse ? currentUser.enrolledCourseIds.includes(matchedCourse.id) : false;
 
-  const handleJoin = (e: React.FormEvent) => {
+  const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
@@ -53,17 +53,27 @@ export const JoinClassroomModal: React.FC<JoinClassroomModalProps> = ({
       return;
     }
 
-    if (!matchedCourse) {
+    let target = matchedCourse;
+    if (!target) {
+      try {
+        target = (await joinByCode(trimmedCode)) || undefined;
+      } catch {
+        setError('ไม่สามารถตรวจสอบรหัสห้องเรียนได้ กรุณาลองใหม่');
+        return;
+      }
+    }
+
+    if (!target) {
       setError('ไม่พบห้องเรียนที่ตรงกับรหัสดังกล่าว กรุณาตรวจสอบรหัสห้องเรียนจากอาจารย์ผู้สอนอีกครั้ง');
       return;
     }
 
     // Auto-enroll if not yet enrolled
-    if (!isEnrolled) {
-      enrollInCourse(matchedCourse.id);
+    if (!currentUser.enrolledCourseIds.includes(target.id)) {
+      enrollInCourse(target.id);
     }
 
-    onJoinSuccess(matchedCourse);
+    onJoinSuccess(target);
     onClose();
     setCode('');
   };

@@ -129,6 +129,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onPreviewEmail }) => {
   const [newUserRole, setNewUserRole] = useState<UserRole>('student');
   const [newUserDepartment, setNewUserDepartment] = useState('');
   const [newUserPhone, setNewUserPhone] = useState('');
+  const [newUserPassword, setNewUserPassword] = useState('');
 
   // Course & Lesson state
   const [selectedCourseId, setSelectedCourseId] = useState<string>(courses[0]?.id || '');
@@ -155,13 +156,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onPreviewEmail }) => {
   // Handlers
   const handleCreateUser = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newUserName.trim() || !newUserEmail.trim()) return;
+    if (!newUserName.trim() || !newUserEmail.trim() || newUserPassword.length < 8) return;
 
     addUser({
       name: newUserName.trim(),
       email: newUserEmail.trim(),
       avatar: `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80`,
       role: newUserRole,
+      password: newUserPassword,
       department: newUserDepartment.trim() || 'ทั่วไป',
       phone: newUserPhone.trim() || '080-000-0000'
     });
@@ -170,6 +172,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onPreviewEmail }) => {
     setNewUserEmail('');
     setNewUserDepartment('');
     setNewUserPhone('');
+    setNewUserPassword('');
     setShowAddUserModal(false);
   };
 
@@ -1367,6 +1370,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onPreviewEmail }) => {
                   placeholder="user@bbflexlearn.th"
                   value={newUserEmail}
                   onChange={e => setNewUserEmail(e.target.value)}
+                  className="w-full p-2.5 rounded-lg border border-slate-200 focus:outline-none focus:border-indigo-600"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="font-semibold text-slate-700 block mb-1">รหัสผ่านเริ่มต้น * (อย่างน้อย 8 ตัวอักษร)</label>
+                <input
+                  type="password"
+                  value={newUserPassword}
+                  onChange={e => setNewUserPassword(e.target.value)}
+                  minLength={8}
+                  autoComplete="new-password"
                   className="w-full p-2.5 rounded-lg border border-slate-200 focus:outline-none focus:border-indigo-600"
                   required
                 />
