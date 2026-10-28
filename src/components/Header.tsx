@@ -40,7 +40,7 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onOpenN
   };
 
   return (
-    <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200 w-full">
+    <header className="sticky top-0 z-40 pt-[env(safe-area-inset-top)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] bg-white/95 backdrop-blur-md border-b border-slate-200 w-full">
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-2 sm:gap-4 lg:gap-6 px-3 sm:px-6 py-2.5 sm:py-3.5">
         
         {/* Zone 1: Single text element wordmark with customizable AppLogo */}

@@ -133,7 +133,7 @@ function MainApp() {
   const featuredCourse = courses[0];
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
+    <div className="min-h-dvh bg-slate-50 text-slate-900 flex flex-col font-sans">
       {/* 1-Row 3-Zone Header Contract */}
       <Header
         currentView={currentView}
@@ -146,7 +146,7 @@ function MainApp() {
       />
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8 pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-8">
         
         {/* VIEW 1: CATALOG OR MY COURSES */}
         {(currentView === 'catalog' || currentView === 'my_courses') && (

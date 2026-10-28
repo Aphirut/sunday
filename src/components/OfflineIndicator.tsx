@@ -8,7 +8,7 @@ export const OfflineIndicator: React.FC = () => {
   if (isOnline) return null;
 
   return (
-    <div className="fixed bottom-16 sm:bottom-6 left-4 right-4 sm:right-auto sm:max-w-md z-50 flex items-center justify-between gap-3 rounded-2xl bg-slate-900 text-white p-3.5 shadow-2xl border border-amber-500/40 animate-bounce">
+    <div className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] sm:bottom-6 left-4 right-4 sm:right-auto sm:max-w-md z-50 flex items-center justify-between gap-3 rounded-2xl bg-slate-900 text-white p-3.5 shadow-2xl border border-amber-500/40 animate-bounce">
       <div className="flex items-center gap-2.5">
         <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
           <WifiOff className="w-4 h-4" />

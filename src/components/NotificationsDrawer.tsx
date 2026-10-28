@@ -20,7 +20,7 @@ export const NotificationsDrawer: React.FC<NotificationsDrawerProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden bg-slate-950/60 backdrop-blur-sm flex justify-end">
-      <div className="w-full max-w-md bg-white h-full shadow-2xl flex flex-col border-l border-slate-200">
+      <div className="w-full max-w-md bg-white h-full pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] shadow-2xl flex flex-col border-l border-slate-200">
         
         {/* Top Header */}
         <div className="p-4 sm:p-5 border-b border-slate-200 flex items-center justify-between bg-slate-50">
