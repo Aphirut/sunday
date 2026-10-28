@@ -46,10 +46,10 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onOpenN
         {/* Zone 1: Single text element wordmark with customizable AppLogo */}
         <div
           onClick={() => handleNavClick('catalog')}
-          className="flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0 group min-w-0"
+          className="flex items-center gap-2 cursor-pointer whitespace-nowrap shrink min-w-0 group"
         >
           <AppLogo size="md" />
-          <span className="text-base sm:text-lg font-bold tracking-tight text-slate-900 group-hover:text-indigo-600 transition-colors truncate max-w-[130px] sm:max-w-[200px] md:max-w-[240px] lg:max-w-none">
+          <span className="text-base sm:text-lg font-bold tracking-tight text-slate-900 group-hover:text-indigo-600 transition-colors truncate min-w-0 sm:max-w-[200px] md:max-w-[240px] lg:max-w-none">
             {appSettings.appName || 'BB FlexLearn'}
           </span>
         </div>
@@ -109,19 +109,21 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onOpenN
         </nav>
 
         {/* Zone 3: Actions & Account cluster (Adaptive to prevent overflow) */}
-        <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+        <div className="flex items-center gap-1 sm:gap-2.5 shrink-0">
           
           {/* Learning Level Indicator */}
-          <StudentProgress
-            variant="header"
-            onOpenDashboard={() => handleNavClick('dashboard')}
-          />
+          <div className="hidden md:block">
+            <StudentProgress
+              variant="header"
+              onOpenDashboard={() => handleNavClick('dashboard')}
+            />
+          </div>
 
           {/* Join Classroom with Code Button */}
           {onOpenJoinClassroom && (
             <button
               onClick={onOpenJoinClassroom}
-              className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100/80 text-indigo-700 text-xs font-semibold border border-indigo-200/80 transition shadow-2xs active:scale-95 cursor-pointer shrink-0"
+              className="hidden md:flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100/80 text-indigo-700 text-xs font-semibold border border-indigo-200/80 transition shadow-2xs active:scale-95 cursor-pointer shrink-0"
               title="เข้าร่วมห้องเรียนด้วยรหัส (Classroom Code)"
             >
               <KeyRound className="w-3.5 h-3.5 text-indigo-600 shrink-0" />

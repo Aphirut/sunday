@@ -25,15 +25,23 @@ const wrap = (fn: (req: AuthedRequest, res: Response) => Promise<unknown>) =>
 
 const signToken = (u: AuthUser) => jwt.sign(u, JWT_SECRET, { expiresIn: '7d' });
 
-// Very small in-memory rate limit for credential endpoints
-const attempts = new Map<string, { n: number; reset: number }>();
+// Small in-memory limiter: counts only FAILED credential attempts per IP, so a shared
+// network (e.g. a school) isn't locked out by many successful logins.
+const failures = new Map<string, { n: number; reset: number }>();
+const MAX_FAILURES = 20;
 const limitAuth = (req: Request, res: Response, next: NextFunction) => {
+  const f = failures.get(req.ip || 'x');
+  if (f && f.reset > Date.now() && f.n >= MAX_FAILURES) {
+    return res.status(429).json({ error: 'พยายามบ่อยเกินไป กรุณาลองใหม่ภายหลัง' });
+  }
+  next();
+};
+const noteFailure = (req: Request) => {
   const key = req.ip || 'x';
   const now = Date.now();
-  const a = attempts.get(key);
-  if (!a || a.reset < now) attempts.set(key, { n: 1, reset: now + 15 * 60_000 });
-  else if (++a.n > 30) return res.status(429).json({ error: 'พยายามบ่อยเกินไป กรุณาลองใหม่ภายหลัง' });
-  next();
+  const f = failures.get(key);
+  if (!f || f.reset < now) failures.set(key, { n: 1, reset: now + 15 * 60_000 });
+  else f.n++;
 };
 
 // Re-reads the user from the DB so role changes/deletions take effect immediately.
@@ -78,7 +86,10 @@ app.post('/api/auth/login', limitAuth, wrap(async (req, res) => {
   const p = z.object({ email: z.string().email(), password: z.string().min(1) }).safeParse(req.body);
   const row = p.success ? await repo.getUserByEmail(p.data.email) : undefined;
   const ok = row && p.success && await bcrypt.compare(p.data.password, row.password_hash);
-  if (!row || !ok) return res.status(401).json({ error: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' });
+  if (!row || !ok) {
+    noteFailure(req);
+    return res.status(401).json({ error: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' });
+  }
   res.json({ token: signToken({ id: row.id, email: row.email, role: row.role }) });
 }));
 
