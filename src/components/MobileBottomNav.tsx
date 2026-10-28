@@ -21,7 +21,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   const colClass = isAdmin ? 'grid-cols-6' : isTeacher ? 'grid-cols-5' : 'grid-cols-4';
 
   return (
-    <div className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 px-1 py-1 shadow-lg no-print overflow-hidden w-full max-w-full">
+    <div className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 px-1 pt-1 pb-[max(0.25rem,env(safe-area-inset-bottom))] shadow-lg no-print overflow-hidden w-full max-w-full">
       <div className={`grid ${colClass} items-center justify-around w-full max-w-full`}>
         <button
           onClick={() => onNavigate('catalog')}

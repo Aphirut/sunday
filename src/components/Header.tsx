@@ -27,7 +27,7 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onOpenNotifications, onOpenJoinClassroom }) => {
-  const { currentUser, users, loginAsUser, notifications, resetAllData, appSettings } = useApp();
+  const { currentUser, notifications, logout, appSettings } = useApp();
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
 
@@ -40,16 +40,16 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onOpenN
   };
 
   return (
-    <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200 w-full">
+    <header className="sticky top-0 z-40 pt-[env(safe-area-inset-top)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] bg-white/95 backdrop-blur-md border-b border-slate-200 w-full">
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-2 sm:gap-4 lg:gap-6 px-3 sm:px-6 py-2.5 sm:py-3.5">
         
         {/* Zone 1: Single text element wordmark with customizable AppLogo */}
         <div
           onClick={() => handleNavClick('catalog')}
-          className="flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0 group min-w-0"
+          className="flex items-center gap-2 cursor-pointer whitespace-nowrap shrink min-w-0 group"
         >
           <AppLogo size="md" />
-          <span className="text-base sm:text-lg font-bold tracking-tight text-slate-900 group-hover:text-indigo-600 transition-colors truncate max-w-[130px] sm:max-w-[200px] md:max-w-[240px] lg:max-w-none">
+          <span className="text-base sm:text-lg font-bold tracking-tight text-slate-900 group-hover:text-indigo-600 transition-colors truncate min-w-0 sm:max-w-[200px] md:max-w-[240px] lg:max-w-none">
             {appSettings.appName || 'BB FlexLearn'}
           </span>
         </div>
@@ -109,19 +109,21 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onOpenN
         </nav>
 
         {/* Zone 3: Actions & Account cluster (Adaptive to prevent overflow) */}
-        <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+        <div className="flex items-center gap-1 sm:gap-2.5 shrink-0">
           
           {/* Learning Level Indicator */}
-          <StudentProgress
-            variant="header"
-            onOpenDashboard={() => handleNavClick('dashboard')}
-          />
+          <div className="hidden md:block">
+            <StudentProgress
+              variant="header"
+              onOpenDashboard={() => handleNavClick('dashboard')}
+            />
+          </div>
 
           {/* Join Classroom with Code Button */}
           {onOpenJoinClassroom && (
             <button
               onClick={onOpenJoinClassroom}
-              className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100/80 text-indigo-700 text-xs font-semibold border border-indigo-200/80 transition shadow-2xs active:scale-95 cursor-pointer shrink-0"
+              className="hidden md:flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100/80 text-indigo-700 text-xs font-semibold border border-indigo-200/80 transition shadow-2xs active:scale-95 cursor-pointer shrink-0"
               title="เข้าร่วมห้องเรียนด้วยรหัส (Classroom Code)"
             >
               <KeyRound className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
@@ -185,28 +187,9 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onOpenN
                       <span className="text-[10px] text-slate-500 block truncate">{currentUser.email}</span>
                     </div>
                   </div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
-                    สลับบัญชีทดสอบ (Demo Switcher):
+                  <span className="text-[10px] font-semibold text-slate-400 block">
+                    {currentUser.role === 'admin' ? 'ผู้ดูแลระบบ' : currentUser.role === 'teacher' ? 'อาจารย์ผู้สอน' : 'ผู้เรียน'}
                   </span>
-                  <div className="space-y-1 max-h-44 overflow-y-auto">
-                    {users.map(u => (
-                      <button
-                        key={u.id}
-                        onClick={() => loginAsUser(u.id)}
-                        className={`w-full flex items-center justify-between p-2 rounded-lg text-left transition-colors ${
-                          u.id === currentUser.id ? 'bg-indigo-50 text-indigo-900 font-semibold' : 'hover:bg-slate-50 text-slate-700'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2 truncate">
-                          <img src={u.avatar} alt={u.name} className="w-5 h-5 rounded-full object-cover" />
-                          <span className="truncate">{u.name}</span>
-                        </div>
-                        <span className="text-[10px] font-mono text-slate-400 shrink-0">
-                          {u.role === 'admin' ? 'Admin' : u.role === 'teacher' ? 'Teacher' : 'Student'}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
                 </div>
 
                 <div className="p-1 space-y-1">
@@ -249,11 +232,11 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onOpenN
                   )}
 
                   <button
-                    onClick={resetAllData}
+                    onClick={logout}
                     className="w-full text-left p-2 rounded-lg hover:bg-rose-50 text-rose-600 flex items-center gap-2 pt-2 border-t border-slate-100"
                   >
                     <RotateCcw className="w-3.5 h-3.5" />
-                    <span>รีเซ็ตข้อมูลตัวอย่าง</span>
+                    <span>ออกจากระบบ</span>
                   </button>
                 </div>
               </div>
@@ -373,13 +356,13 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onOpenN
             </div>
             <button
               onClick={() => {
-                resetAllData();
+                logout();
                 setShowMobileMenu(false);
               }}
               className="text-[11px] text-rose-600 hover:underline flex items-center gap-1 font-medium"
             >
               <RotateCcw className="w-3 h-3" />
-              <span>รีเซ็ตข้อมูล</span>
+              <span>ออกจากระบบ</span>
             </button>
           </div>
         </div>

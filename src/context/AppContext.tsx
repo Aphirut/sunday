@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import { api, type Bootstrap } from '../api';
 import {
   User,
   Course,
@@ -12,14 +13,6 @@ import {
   SubjectiveGradeItem,
   AppSettings
 } from '../types';
-import {
-  INITIAL_USERS,
-  INITIAL_COURSES,
-  INITIAL_PROGRESS,
-  INITIAL_CERTIFICATES,
-  INITIAL_NOTIFICATIONS,
-  INITIAL_ANALYTICS
-} from '../data/initialData';
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
   appName: 'BB FlexLearn',
@@ -43,8 +36,9 @@ interface AppContextType {
   appSettings: AppSettings;
   updateAppSettings: (newSettings: Partial<AppSettings>) => void;
   // User Actions
-  loginAsUser: (userId: string) => void;
-  addUser: (userData: Omit<User, 'id' | 'createdAt' | 'enrolledCourseIds'>) => User;
+  logout: () => void;
+  addUser: (userData: Omit<User, 'id' | 'createdAt' | 'enrolledCourseIds'> & { password: string }) => User;
+  joinByCode: (code: string) => Promise<Course | null>;
   deleteUser: (userId: string) => void;
   // Course Actions
   addCourse: (courseData: Omit<Course, 'id' | 'updatedAt'>) => Course;
@@ -89,160 +83,93 @@ interface AppContextType {
   // Progress helpers
   getCurrentUserCourseProgress: (courseId: string) => UserCourseProgress | undefined;
   calculateCourseProgressPercentage: (courseId: string, userId?: string) => number;
-  resetAllData: () => void;
 }
-
-const STORAGE_KEYS = {
-  USERS: 'ls_users_v1',
-  CURRENT_USER_ID: 'ls_current_user_id_v1',
-  COURSES: 'ls_courses_v1',
-  PROGRESS: 'ls_progress_v1',
-  CERTIFICATES: 'ls_certificates_v1',
-  NOTIFICATIONS: 'ls_notifications_v1',
-  ANALYTICS: 'ls_analytics_v1',
-  SETTINGS: 'ls_app_settings_v1',
-};
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // 0. App Branding & Settings
-  const [appSettings, setAppSettings] = useState<AppSettings>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.SETTINGS);
-      if (!saved) return DEFAULT_APP_SETTINGS;
-      const parsed = JSON.parse(saved);
-      return { ...DEFAULT_APP_SETTINGS, ...parsed };
-    } catch {
-      return DEFAULT_APP_SETTINGS;
-    }
-  });
+type Snapshot = Map<string, string>;
+const snapshotOf = <T,>(items: T[], keyOf: (t: T) => string): Snapshot =>
+  new Map(items.map(i => [keyOf(i), JSON.stringify(i)]));
 
-  // 1. Initialize Users (with user notes in profile)
-  const [users, setUsers] = useState<User[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.USERS);
-      if (!saved) return INITIAL_USERS;
-      const parsed: User[] = JSON.parse(saved);
-      const existingIds = new Set(parsed.map(u => u.id));
-      const missingUsers = INITIAL_USERS.filter(u => !existingIds.has(u.id));
-      return [...parsed, ...missingUsers].map(u => {
-        const initUser = INITIAL_USERS.find(iu => iu.id === u.id);
-        return {
-          ...u,
-          notes: u.notes !== undefined ? u.notes : (initUser?.notes || [])
-        };
+/**
+ * Write-through persistence: whenever a collection changes, push every changed item
+ * (and every removed key) to the server. The server enforces who may write what.
+ */
+function useServerSync<T>(
+  items: T[],
+  snapshot: React.MutableRefObject<Snapshot>,
+  keyOf: (t: T) => string,
+  upsert: (item: T, isNew: boolean) => Promise<unknown>,
+  remove: ((key: string) => Promise<unknown>) | null,
+  enabled: boolean
+) {
+  useEffect(() => {
+    if (!enabled) return;
+    const seen = new Set<string>();
+    for (const item of items) {
+      const key = keyOf(item);
+      const json = JSON.stringify(item);
+      seen.add(key);
+      const prev = snapshot.current.get(key);
+      if (prev === json) continue;
+      snapshot.current.set(key, json);
+      upsert(item, prev === undefined).catch(err => {
+        console.warn('[sync] failed', key, err);
+        // Forget it so the next change retries instead of silently diverging.
+        if (prev === undefined) snapshot.current.delete(key); else snapshot.current.set(key, prev);
       });
-    } catch {
-      return INITIAL_USERS;
     }
-  });
-
-  // Current active user ID
-  const [currentUserId, setCurrentUserId] = useState<string>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.CURRENT_USER_ID);
-      return saved || 'user-student-1';
-    } catch {
-      return 'user-student-1';
+    for (const key of [...snapshot.current.keys()]) {
+      if (seen.has(key)) continue;
+      snapshot.current.delete(key);
+      remove?.(key).catch(err => console.warn('[sync] delete failed', key, err));
     }
-  });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, enabled]);
+}
 
-  // 2. Initialize Courses
-  const [courses, setCourses] = useState<Course[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.COURSES);
-      if (!saved) return INITIAL_COURSES;
-      const parsed: Course[] = JSON.parse(saved);
-      const existingIds = new Set(parsed.map(c => c.id));
-      const missingCourses = INITIAL_COURSES.filter(c => !existingIds.has(c.id));
-      return [...parsed, ...missingCourses].map(c => {
-        const init = INITIAL_COURSES.find(ic => ic.id === c.id);
-        return {
-          ...c,
-          classroomCode: c.classroomCode || init?.classroomCode
-        };
-      });
-    } catch {
-      return INITIAL_COURSES;
-    }
-  });
+export const AppProvider: React.FC<{ children: React.ReactNode; initial: Bootstrap; onLogout: () => void }> = ({ children, initial, onLogout }) => {
+  const [appSettings, setAppSettings] = useState<AppSettings>({ ...DEFAULT_APP_SETTINGS, ...(initial.settings || {}) });
+  const [users, setUsers] = useState<User[]>(initial.users);
+  const currentUserId = initial.currentUserId;
+  const [courses, setCourses] = useState<Course[]>(initial.courses);
+  const [progressList, setProgressList] = useState<UserCourseProgress[]>(initial.progress);
+  const [certificates, setCertificates] = useState<Certificate[]>(initial.certificates);
+  const [notifications, setNotifications] = useState<EmailNotification[]>(initial.notifications);
+  const [analytics, setAnalytics] = useState<CourseAnalytics[]>(initial.analytics);
 
-  // 3. Initialize Progress
-  const [progressList, setProgressList] = useState<UserCourseProgress[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.PROGRESS);
-      if (!saved) return INITIAL_PROGRESS;
-      const parsed: UserCourseProgress[] = JSON.parse(saved);
-      const existingKeys = new Set(parsed.map(p => `${p.courseId}_${p.userId}`));
-      const missing = INITIAL_PROGRESS.filter(p => !existingKeys.has(`${p.courseId}_${p.userId}`));
-      return [...parsed, ...missing];
-    } catch {
-      return INITIAL_PROGRESS;
-    }
-  });
+  const me = initial.users.find(u => u.id === currentUserId)!;
+  const isStaff = me.role === 'admin' || me.role === 'teacher';
+  const isAdmin = me.role === 'admin';
 
-  // 4. Initialize Certificates
-  const [certificates, setCertificates] = useState<Certificate[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.CERTIFICATES);
-      return saved ? JSON.parse(saved) : INITIAL_CERTIFICATES;
-    } catch {
-      return INITIAL_CERTIFICATES;
-    }
-  });
+  const userSnap = useRef<Snapshot>(snapshotOf(initial.users.map(({ notes, ...u }) => u), u => u.id));
+  const courseSnap = useRef<Snapshot>(snapshotOf(initial.courses, c => c.id));
+  const progressSnap = useRef<Snapshot>(snapshotOf(initial.progress, p => `${p.courseId}/${p.userId}`));
+  const certSnap = useRef<Snapshot>(snapshotOf(initial.certificates, c => c.id));
+  const notifSnap = useRef<Snapshot>(snapshotOf(initial.notifications, n => n.id));
+  const noteSnap = useRef<Snapshot>(snapshotOf(me.notes || [], n => n.id));
+  const analyticsSnap = useRef<Snapshot>(snapshotOf(initial.analytics, a => a.courseId));
+  const settingsSnap = useRef<Snapshot>(new Map([['app', JSON.stringify({ ...DEFAULT_APP_SETTINGS, ...(initial.settings || {}) })]]));
+  const pendingPasswords = useRef(new Map<string, string>());
 
-  // 5. Initialize Notifications
-  const [notifications, setNotifications] = useState<EmailNotification[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS);
-      return saved ? JSON.parse(saved) : INITIAL_NOTIFICATIONS;
-    } catch {
-      return INITIAL_NOTIFICATIONS;
-    }
-  });
-
-  // 6. Analytics
-  const [analytics, setAnalytics] = useState<CourseAnalytics[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.ANALYTICS);
-      return saved ? JSON.parse(saved) : INITIAL_ANALYTICS;
-    } catch {
-      return INITIAL_ANALYTICS;
-    }
-  });
-
-  // Persistent storage effects
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
-  }, [users]);
+  // Non-admins may only write their own profile row.
+  const syncedUsers = (isAdmin ? users : users.filter(u => u.id === currentUserId)).map(({ notes, ...u }) => u);
+  useServerSync(syncedUsers, userSnap, u => u.id,
+    (u, isNew) => isNew
+      ? api('POST', '/api/users', { ...u, password: pendingPasswords.current.get(u.id) })
+      : api('PUT', `/api/users/${u.id}`, u),
+    isAdmin ? id => api('DELETE', `/api/users/${id}`) : null, true);
+  useServerSync(courses, courseSnap, c => c.id, c => api('PUT', `/api/courses/${c.id}`, c),
+    isStaff ? id => api('DELETE', `/api/courses/${id}`) : null, isStaff);
+  useServerSync(progressList, progressSnap, p => `${p.courseId}/${p.userId}`, p => api('PUT', `/api/progress/${p.courseId}/${p.userId}`, p), null, true);
+  useServerSync(certificates, certSnap, c => c.id, c => api('PUT', `/api/certificates/${c.id}`, c), null, true);
+  useServerSync(notifications, notifSnap, n => n.id, n => api('PUT', `/api/notifications/${n.id}`, n), null, true);
+  const myNotes = users.find(u => u.id === currentUserId)?.notes || [];
+  useServerSync(myNotes, noteSnap, n => n.id, n => api('PUT', `/api/notes/${n.id}`, n), id => api('DELETE', `/api/notes/${id}`), true);
+  useServerSync(analytics, analyticsSnap, a => a.courseId, a => api('PUT', `/api/analytics/${a.courseId}`, a), null, isStaff);
+  useServerSync([appSettings], settingsSnap, () => 'app', s => api('PUT', '/api/settings', s), null, isAdmin);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.CURRENT_USER_ID, currentUserId);
-  }, [currentUserId]);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.COURSES, JSON.stringify(courses));
-  }, [courses]);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.PROGRESS, JSON.stringify(progressList));
-  }, [progressList]);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.CERTIFICATES, JSON.stringify(certificates));
-  }, [certificates]);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(notifications));
-  }, [notifications]);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.ANALYTICS, JSON.stringify(analytics));
-  }, [analytics]);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(appSettings));
     if (appSettings.appName) {
       document.title = `${appSettings.appName} - แพลตฟอร์มการเรียนรู้ออนไลน์`;
     }
@@ -255,22 +182,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
-  const currentUser = users.find(u => u.id === currentUserId) || users[0] || INITIAL_USERS[0];
+  const currentUser = users.find(u => u.id === currentUserId) || me;
 
-  const loginAsUser = (userId: string) => {
-    const found = users.find(u => u.id === userId);
-    if (found) {
-      setCurrentUserId(userId);
+  const logout = onLogout;
+
+  // Students join a classroom by code; the server reveals the course only for a valid, open code.
+  const joinByCode = async (code: string): Promise<Course | null> => {
+    const { course } = await api<{ course: Course | null }>('POST', '/api/classroom/lookup', { code });
+    if (!course) return null;
+    if (!courses.some(c => c.id === course.id)) {
+      courseSnap.current.set(course.id, JSON.stringify(course)); // already on the server; don't re-push
+      setCourses(prev => [...prev, course]);
     }
+    return course;
   };
 
-  const addUser = (userData: Omit<User, 'id' | 'createdAt' | 'enrolledCourseIds'>): User => {
+  const addUser = ({ password, ...userData }: Omit<User, 'id' | 'createdAt' | 'enrolledCourseIds'> & { password: string }): User => {
     const newUser: User = {
       ...userData,
-      id: `user-${Date.now()}`,
+      id: `user-${crypto.randomUUID()}`,
       createdAt: new Date().toISOString().split('T')[0],
       enrolledCourseIds: ['course-web-dev']
     };
+    pendingPasswords.current.set(newUser.id, password);
     setUsers(prev => [newUser, ...prev]);
 
     // Send welcome simulated email
@@ -1009,18 +943,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
-  const resetAllData = () => {
-    setUsers(INITIAL_USERS);
-    setCurrentUserId('user-student-1');
-    setCourses(INITIAL_COURSES);
-    setProgressList(INITIAL_PROGRESS);
-    setCertificates(INITIAL_CERTIFICATES);
-    setNotifications(INITIAL_NOTIFICATIONS);
-    setAnalytics(INITIAL_ANALYTICS);
-    setAppSettings(DEFAULT_APP_SETTINGS);
-    localStorage.clear();
-  };
-
   return (
     <AppContext.Provider
       value={{
@@ -1033,7 +955,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         analytics,
         appSettings,
         updateAppSettings,
-        loginAsUser,
+        logout,
+        joinByCode,
         addUser,
         deleteUser,
         addCourse,
@@ -1056,8 +979,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addUserNote,
         updateUserNote,
         deleteUserNote,
-        getUserNotes,
-        resetAllData
+        getUserNotes
       }}
     >
       {children}
